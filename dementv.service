@@ -1,0 +1,14 @@
+[Unit]
+Description=DemenTV
+After=zeroplay.service
+Wants=zeroplay.service
+
+[Service]
+User=root
+Group=root
+ExecStart=/usr/bin/python3 /home/user/dementv.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

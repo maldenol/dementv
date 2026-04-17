@@ -1,0 +1,17 @@
+[Unit]
+Description=ZeroPlay video player (WebSocket mode)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=user
+Group=video
+Environment=HOME=/home/user
+Environment=BACKEND_WS_URL=ws://127.0.0.1:8888
+Environment=DEVICE_TOKEN=0
+ExecStart=/usr/local/bin/zeroplay --ws-url ${BACKEND_WS_URL} --device-token ${DEVICE_TOKEN}
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
