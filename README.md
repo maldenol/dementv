@@ -15,13 +15,13 @@ Uses the cheapest RPi to show videos from YouTube with simplest possible control
 2. previous "channel";
 3. volume up;
 4. volume down;
-5. on/off;
+5. on/off.
 
-using TV's own IR remote.  
-Can play 1080p@60fps videos by Wi-Fi.  
 Does not show ads.  
+Can play 1080p@60fps videos by Wi-Fi.  
+Uses TV's own IR remote (if you can isolate TV's own IR RX).  
 Controls the TV using HDMI CEC.  
-Consumes a little.
+Does not consume much.
 
 ### How to
 1. Get any RPi. I made it for Raspberry Pi Zero W, the weakest one.

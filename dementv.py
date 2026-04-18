@@ -24,11 +24,11 @@ EOS_COOLDOWN = 10.0
 
 IR_PROTOCOL = "nec"
 IR_RX_COMMANDS = {
-    "PWR"      : ("0x7f0a", "0x7f0b", ),
-    "CH_NEXT"  : ("0x7ffb", ),
-    "CH_PREV"  : ("0x7ffa", ),
-    "VOL_UP"   : ("0x7ff9", ),
-    "VOL_DOWN" : ("0x7ff8", ),
+    "PWR"      : (69, 70, 71, ),
+    "CH_NEXT"  : ( 7, 21,  9, ),
+    "CH_PREV"  : (22, 25, 13, ),
+    "VOL_UP"   : ( 8, 28, 90, ),
+    "VOL_DOWN" : (66, 82, 74, ),
 }
 IR_RX_COOLDOWN = 1.0
 
@@ -161,9 +161,7 @@ def websocket_server_thread_function():
 
 
 def hdmi_cec_tx_init():
-    if not os.system("cec-ctl --tv") == 0:
-        return False
-    return True
+    return os.system("cec-ctl --tv") == 0
 
 def hdmi_cec_tx(command):
     os.system(f"cec-ctl --to TV --user-control-pressed=ui-cmd={command}")
@@ -179,9 +177,9 @@ def ir_rx_init():
 
 def ir_rx(ir_rx_device):
     event = ir_rx_device.read_one()
-    if not event is None:
-        return str(hex(event.value))
-    return None
+    while not ir_rx_device.read_one() is None:
+        pass
+    return event.value if not event is None else None
 
 
 def main():
