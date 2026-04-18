@@ -17,42 +17,38 @@ Uses the cheapest RPi to show videos from YouTube with simplest possible control
 4. volume down;
 5. on/off;
 
-and without ads. Is controlled by TV's own IR remote (IR man-in-the-middle). Can play 1080p@60fps videos by Wi-Fi.
-Connects to TV by HDMI. Consumes a little. YouTube video search prompts you can specify.
+using TV's own IR remote.  
+Can play 1080p@60fps videos by Wi-Fi.  
+Does not show ads.  
+Controls the TV using HDMI CEC.  
+Consumes a little.
 
 ### How to
 1. Get any RPi. I made it for Raspberry Pi Zero W, the weakest one.
-2. Connect IR RX to GPIO 27 and IR TX to GPIO 12.
+2. Connect IR RX to GPIO 27. Make sure to not exceed 8 mA (use 500 Ohm resistor).
 3. Install Raspberry Pi OS Lite (32-bit trixie in my case).
 4. Connect to TV by HDMI.
 5. Connect to power source.
 6. Create user "user".
-7. Add next lines to the end of `/boot/firmware/config.txt`:
+7. Add next line to the end of `/boot/firmware/config.txt`:
 ```
 dtoverlay=gpio-ir,gpio_pin=27
-dtoverlay=pwm-ir-tx,gpio_pin=12,func=4
 ```
 8. Install dependencies.
 ```
 apt-get install python3-pip python3-websockets python3-evdev
 python3 -m pip install yt-dlp --break-system-packages
 ```
-9. Install ZeroPlay with websocket support ([stable](https://github.com/maldenol/zeroplay), [latest](https://github.com/HorseyofCoursey/zeroplay)).
+9. Install ZeroPlay with WebSocket support ([stable](https://github.com/maldenol/zeroplay), [latest](https://github.com/HorseyofCoursey/zeroplay)).
 10. Reboot.
-11. Modify dementv.py for yout needs: IR protocol, signals and YouTube search prompts. Use these lines to check whether your IR RX and TX work and which signals does your remote send:
+11. Modify dementv.py for yout needs: IR protocol, signals and YouTube search prompts. Use this line to check whether your IR RX work and which signals does your remote send:
 ```
-sudo ir-keytable -p all -s rc<0_or_1> & evtest # check RX
-ir-ctl -d /dev/lirc<0_or_1> -S <ir_protocol>:0x0000 # check TX
+sudo ir-keytable -p all -s rc0 & evtest
 ```
 12. Copy dementv.py to ```/home/user/```.
 13. Copy dementv.service and zeroplay.service to ```/etc/systemd/system/```.
 14. Enable these two services.
 15. Reboot. Enjoy?
-
-### Difference
-If your TV is controlled by Bluetooth, you might need to replace IR with BT support.
-If your TV has HDMI CEC (best scenario), you might use it to control the TV instead of IR.
-If your TV has ADB activated, you might use it to control the TV instead of IR.
 
 ### To improve
 Does not currently support playing YouTube live streams at a reasonable quality.
