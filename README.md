@@ -39,7 +39,7 @@ dtoverlay=gpio-ir,gpio_pin=27
 apt-get install python3-pip python3-websockets python3-evdev
 python3 -m pip install yt-dlp --break-system-packages
 ```
-9. Install ZeroPlay with WebSocket support ([stable](https://github.com/maldenol/zeroplay), [latest](https://github.com/HorseyofCoursey/zeroplay)).
+9. Install ZeroPlay with WebSocket support ([stable and checked fork](https://github.com/maldenol/zeroplay), [latest](https://github.com/HorseyofCoursey/zeroplay)).
 10. Reboot.
 11. Modify dementv.py for yout needs: IR protocol, signals and YouTube search prompts. Use this line to check whether your IR RX work and which signals does your remote send:
 ```

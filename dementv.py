@@ -19,8 +19,7 @@ SEARCH_PROMPTS = {
 }
 VIDEO_UPDATE_COOLDOWN = 5.0 * 60.0 * 60.0 # YT streams expire after 6 hours
 
-PLAY_COOLDOWN = 5.0
-EOS_COOLDOWN = 10.0
+PLAY_COOLDOWN = 15.0
 
 IR_PROTOCOL = "nec"
 IR_RX_COMMANDS = {
@@ -30,7 +29,7 @@ IR_RX_COMMANDS = {
     "VOL_UP"   : ( 8, 28, 90, ),
     "VOL_DOWN" : (66, 82, 74, ),
 }
-IR_RX_COOLDOWN = 1.0
+IR_RX_COOLDOWN = 2.0
 
 HDMI_CEC_COMMANDS = {
     "PWR_ON"   : "power-on-function",
@@ -98,6 +97,7 @@ def prepare_video_list():
         (video_url, audio_url) = get_video_urls(video["id"])
         video["video"] = video_url
         video["audio"] = audio_url
+        log(f"Status: Found video {video["id"]}")
     videos[:] = [video for video in videos if not video["audio"] is None]
 
     log(f"Status: New list of {len(videos)} videos is ready")
@@ -121,19 +121,39 @@ def update_video_list_thread_function():
             time.sleep(sleep_time)
 
 
-def play_video(video):
+def websocket_client_send(message):
     global websocket_server_loop, websocket_client
 
     if not websocket_client or not websocket_server_loop:
         log("ERROR: No websocket client connected")
         return
 
+    asyncio.run_coroutine_threadsafe(websocket_client.send(message), websocket_server_loop)
+
+def play_video(video):
+    global is_playing
+
+    log(f"Status: Stopping current video")
+    message = json.dumps({
+        "op": "stop",
+    })
+    websocket_client_send(message)
+    while is_playing:
+        time.sleep(0.1)
+
+    time.sleep(1.0)
+
     log(f"Status: Playing: {video["id"]}")
     message = json.dumps({
         "op": "load",
         "url": f"({video["video"]})({video["audio"]})",
     })
-    asyncio.run_coroutine_threadsafe(websocket_client.send(message), websocket_server_loop)
+    websocket_client_send(message)
+    sleep_time_left = PLAY_COOLDOWN
+    while (not is_playing) and (sleep_time_left > 0.0):
+        delta = 0.1
+        sleep_time_left -= delta
+        time.sleep(delta)
 
 
 async def websocket_client_handler(client):
@@ -144,7 +164,10 @@ async def websocket_client_handler(client):
         async for message in client:
             message = json.loads(message)
             if "idle" in message:
+                was_playing = is_playing
                 is_playing = not message["idle"]
+                if not is_playing == was_playing:
+                    log(f"Status: Playing = {is_playing}")
     finally:
         websocket_client = None
         log("ERROR: Websocket client disconnected")
@@ -168,8 +191,9 @@ def hdmi_cec_tx(command):
 
 
 def ir_rx_init():
-    if not os.system(f"ir-keytable -p {IR_PROTOCOL} -s rc0") == 0:
-        return None
+    return os.system(f"ir-keytable -p {IR_PROTOCOL} -s rc0") == 0
+
+def ir_rx_find():
     for device in [evdev.InputDevice(path) for path in evdev.list_devices()]:
         if "gpio_ir_recv" in device.name:
             return device
@@ -188,10 +212,10 @@ def main():
         exit(-1)
     log("Status: HDMI CEC ready")
 
-    ir_rx_device = ir_rx_init()
-    if ir_rx_device is None:
+    if not ir_rx_init():
         log("ERROR: IR RX device not found")
         exit(-1)
+    ir_rx_device = ir_rx_find()
     log("Status: IR ready")
 
     threading.Thread(target=websocket_server_thread_function, daemon=True).start()
@@ -203,33 +227,31 @@ def main():
 
     pwr_on = True
 
-    last_cmd_time = 0
     while True:
         event = ir_rx(ir_rx_device)
         if not event is None:
-            if time.time() - last_cmd_time > IR_RX_COOLDOWN:
-                last_cmd_time = time.time()
-            else:
-                continue
-
             if event in IR_RX_COMMANDS["PWR"]:
                 log("Event: PWR")
                 pwr_on = not pwr_on
-                hdmi_cec_tx(HDMI_CEC_COMMANDS["PWR_ON" if pwr_on else "PWR_OFF"])
+                for _ in range(5):
+                    hdmi_cec_tx(HDMI_CEC_COMMANDS["PWR_ON" if pwr_on else "PWR_OFF"])
+                    time.sleep(1.0)
+                if not pwr_on:
+                    os.system("killall -s 9 zeroplay")
             elif event in IR_RX_COMMANDS["CH_NEXT"]:
                 log("Event: CH_NEXT")
                 if len(videos) > 0:
                     current_video_index += 1
                     current_video_index %= len(videos)
                     play_video(videos[current_video_index])
-                    time.sleep(PLAY_COOLDOWN)
+                time.sleep(PLAY_COOLDOWN)
             elif event in IR_RX_COMMANDS["CH_PREV"]:
                 log("Event: CH_PREV")
                 if len(videos) > 0:
                     current_video_index -= 1
                     current_video_index %= len(videos)
                     play_video(videos[current_video_index])
-                    time.sleep(PLAY_COOLDOWN)
+                time.sleep(PLAY_COOLDOWN)
             elif event in IR_RX_COMMANDS["VOL_UP"]:
                 log("Event: VOL_UP")
                 hdmi_cec_tx(HDMI_CEC_COMMANDS["VOL_UP"])
@@ -237,16 +259,16 @@ def main():
                 log("Event: VOL_DOWN")
                 hdmi_cec_tx(HDMI_CEC_COMMANDS["VOL_DOWN"])
 
-        if not is_playing:
-            time.sleep(EOS_COOLDOWN)
-            if not is_playing:
+        if pwr_on and not is_playing:
+            if len(videos) > 0:
                 log("Event: EOS")
-                if len(videos) > 0:
-                    current_video_index += 1
-                    current_video_index %= len(videos)
-                    play_video(videos[current_video_index])
+                current_video_index += 1
+                current_video_index %= len(videos)
+                play_video(videos[current_video_index])
 
-        time.sleep(0.1)
+        ir_rx(ir_rx_device)
+
+        time.sleep(IR_RX_COOLDOWN)
 
 
 if __name__ == "__main__":
